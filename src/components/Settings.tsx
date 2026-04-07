@@ -3,19 +3,20 @@
 import { useState } from 'react';
 import { useGlobalData } from '@/context/DataContext';
 import { useAuth } from '@/hooks/useAuth';
-import { calcPts, cfgOf, setorOf, fn, fc } from '@/lib/utils';
+import { td, calcPts, cfgOf, setorOf, fn, fc } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 
 export default function SettingsPage() {
     const { user } = useAuth();
-    const { loading, users, config, records, sectors, sectorConfigs, billings, bonus, refresh, openModal } = useGlobalData();
+    const { loading, users, config, records, sectors, sectorConfigs, billings, bonus, metaHistory, refresh, openModal, selectedMonth } = useGlobalData();
 
-    const [activeTab, setActiveTab] = useState<1 | 2 | 3>(1);
+    const [activeTab, setActiveTab] = useState(0); // 0: Perfil, 1: Colabs, 2: Setores, 3: Sistema, 4: Acesso
+    const [q, setQ] = useState('');
 
     const handleBackup = () => {
         const payload = {
             export_date: new Date().toISOString(),
-            data: { users, config, records, sectors, sectorConfigs, billings, bonus }
+            data: { users, config, records, sectors, sectorConfigs, billings, bonus, metaHistory }
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -31,7 +32,9 @@ export default function SettingsPage() {
     if (loading || !user) return <div className="page active"><p className="muted">Carregando...</p></div>;
     if (user.role !== 'sup') return <div className="page active"><div className="empty"><h3>Acesso Negado</h3></div></div>;
 
-    const collabs = users.filter((u: any) => u.role !== 'sup');
+    const collabs = users.filter((u: any) => u.role === 'col');
+    const filteredCollabs = collabs.filter((u: any) => u.name.toLowerCase().includes(q.toLowerCase()) || u.username.toLowerCase().includes(q.toLowerCase()));
+    const allUsers = users.filter((u: any) => u.name.toLowerCase().includes(q.toLowerCase()) || u.username.toLowerCase().includes(q.toLowerCase()));
 
     // Collaborators View
     const renderCollabs = () => {
@@ -41,9 +44,9 @@ export default function SettingsPage() {
         return (
             <div className="g3">
                 {collabs.map((u: any) => {
-                    const p = calcPts(u.id, records, config, sectors, sectorConfigs, bonus);
-                    const c = cfgOf(u.id, config, sectors, sectorConfigs);
-                    const s = setorOf(u.id, sectors);
+                    const p = calcPts(u.id, records, config, sectors, sectorConfigs, bonus, metaHistory);
+                    const c = cfgOf(u.id, config, sectors, sectorConfigs, selectedMonth || td().slice(0, 7), metaHistory);
+                    const s = setorOf(u.id, sectors, selectedMonth || td().slice(0, 7), metaHistory);
                     return (
                         <div className="cc" key={u.id}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -128,7 +131,7 @@ export default function SettingsPage() {
     };
 
     // Goals View
-    const renderGoals = () => {
+    const renderSystem = () => {
         if (!sectors.length) {
             return <div className="empty"><div className="ei">🏢</div><h3>Nenhum setor</h3><p>Crie setores na aba Setores para configurar metas por setor</p></div>;
         }
@@ -184,6 +187,57 @@ export default function SettingsPage() {
         );
     };
 
+    function renderAccess() {
+        return (
+            <div className="fade-in">
+                <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                    <input type="text" placeholder="🔍 Buscar usuário por nome ou Login..." value={q} onChange={e => setQ(e.target.value)} style={{ flex: 1 }} />
+                </div>
+                <div className="box" style={{ padding: 0 }}>
+                    <table className="table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Login</th>
+                                <th>Função</th>
+                                <th style={{ textAlign: 'right' }}>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {allUsers.map((u: any) => (
+                                <tr key={u.id}>
+                                    <td>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <div className="av s32" style={{ background: u.role === 'sup' ? 'var(--amber)' : 'var(--blue)' }}>{u.name[0]}</div>
+                                            <strong>{u.name}</strong>
+                                        </div>
+                                    </td>
+                                    <td><code>{u.username}</code></td>
+                                    <td>
+                                        <span className={`badge ${u.role === 'sup' ? 'b-amber' : 'b-blue'}`}>
+                                            {u.role === 'sup' ? '🌟 Supervisora' : '👤 Colaboradora'}
+                                        </span>
+                                    </td>
+                                    <td style={{ textAlign: 'right' }}>
+                                        <button className="btn btn-gh btn-icon" title="Editar" onClick={() => openModal('mUser', u)}>✏️</button>
+                                        <button className="btn btn-gh btn-icon" title="Remover" onClick={() => handleDelUser(u.id, u.name)}>🗑️</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    }
+
+    async function handleDelUser(id: string, name: string) {
+        if (!confirm(`Deseja realmente remover o acesso de ${name}?`)) return;
+        const { error } = await supabase.from('usuarios').delete().eq('id', id);
+        if (error) alert('Erro ao remover usuário: ' + error.message);
+        else refresh();
+    }
+
     return (
         <div className="page active" style={{ maxWidth: 1000 }}>
             <div className="sh" style={{ marginBottom: 20 }}>
@@ -192,22 +246,26 @@ export default function SettingsPage() {
                     <p>Gerencie equipe, setores e pontuações</p>
                 </div>
                 <div>
-                    {activeTab === 1 && <button className="btn btn-a" onClick={() => openModal('mCb')}>+ Novo Colaborador</button>}
+                    {activeTab === 1 && <button className="btn btn-a" onClick={() => openModal('mCollab')}>+ Novo Colaborador</button>}
+                    {activeTab === 4 && <button className="btn btn-a" onClick={() => openModal('mUser')}>+ Novo Usuário</button>}
                     {activeTab === 2 && <button className="btn btn-a" onClick={() => openModal('mSt')}>+ Novo Setor</button>}
                     {activeTab === 3 && <button className="btn btn-gh" onClick={() => openModal('mGCfg')}>⚙️ Editar Metas Globais</button>}
                 </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 3, background: 'var(--gray100)', borderRadius: 12, padding: 4, marginBottom: 28, width: 'fit-content' }}>
-                <button className={`pbtn ${activeTab === 1 ? 'active' : ''}`} onClick={() => setActiveTab(1)}>👥 Colaboradores</button>
-                <button className={`pbtn ${activeTab === 2 ? 'active' : ''}`} onClick={() => setActiveTab(2)}>🏢 Setores</button>
-                <button className={`pbtn ${activeTab === 3 ? 'active' : ''}`} onClick={() => setActiveTab(3)}>🎯 Metas</button>
+            <div style={{ display: 'flex', gap: 20, borderBottom: '1.5px solid var(--border)', marginBottom: 24 }}>
+                <span className={`tab ${activeTab === 0 ? 'active' : ''}`} onClick={() => setActiveTab(0)}>👤 Perfil</span>
+                <span className={`tab ${activeTab === 1 ? 'active' : ''}`} onClick={() => setActiveTab(1)}>👥 Colaboradores</span>
+                <span className={`tab ${activeTab === 4 ? 'active' : ''}`} onClick={() => setActiveTab(4)}>🔑 Acesso e Sistema</span>
+                <span className={`tab ${activeTab === 2 ? 'active' : ''}`} onClick={() => setActiveTab(2)}>🏢 Setores</span>
+                <span className={`tab ${activeTab === 3 ? 'active' : ''}`} onClick={() => setActiveTab(3)}>⚙️ Configurações</span>
             </div>
 
             <div style={{ marginTop: 24 }}>
                 {activeTab === 1 && renderCollabs()}
                 {activeTab === 2 && renderSectors()}
-                {activeTab === 3 && renderGoals()}
+                {activeTab === 3 && renderSystem()}
+                {activeTab === 4 && renderAccess()}
             </div>
 
             <div className="sh" style={{ marginTop: 40, borderTop: '1px solid var(--g200)', paddingTop: 24, paddingBottom: 10 }}>
@@ -215,7 +273,11 @@ export default function SettingsPage() {
                     <h3>Manutenção e Backup</h3>
                     <p className="muted" style={{ fontSize: 13 }}>Exporte todas as tabelas de dados brutos para um arquivo fechado e seguro JSON.</p>
                 </div>
-                <button className="btn btn-gh" onClick={handleBackup}>💾 Baixar Backup Total (.json)</button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-gh" onClick={handleBackup}>💾 Baixar Backup Total (.json)</button>
+                    <button className="btn btn-gh" onClick={() => openModal('mRestore')}>📤 Restaurar Backup</button>
+                </div>
+                <button className="btn btn-a" onClick={() => openModal('mCloseMonth')}>📅 Fechar Mês</button>
             </div>
         </div>
     );

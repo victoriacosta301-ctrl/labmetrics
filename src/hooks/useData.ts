@@ -12,6 +12,7 @@ export function useData(user: any) {
     const [sectorConfigs, setSectorConfigs] = useState<any>({});
     const [bonus, setBonus] = useState<any>({});
     const [users, setUsers] = useState<any[]>([]);
+    const [metaHistory, setMetaHistory] = useState<any[]>([]);
 
     const fetchData = useCallback(async () => {
         if (!user) return;
@@ -25,7 +26,8 @@ export function useData(user: any) {
                 { data: setData },
                 { data: fatsData },
                 { data: scfgData },
-                { data: bData }
+                { data: bData },
+                { data: histData }
             ] = await Promise.all([
                 supabase.from('usuarios').select('*').order('name'),
                 supabase.from('config').select('*').eq('id', 1).single(),
@@ -33,7 +35,8 @@ export function useData(user: any) {
                 supabase.from('setores').select('*').order('nome'),
                 supabase.from('faturamentos').select('*').order('data', { ascending: false }),
                 supabase.from('scfg').select('*'),
-                supabase.from('bonus').select('*')
+                supabase.from('bonus').select('*'),
+                supabase.from('historico_metas').select('*').order('mes', { ascending: false }).order('id', { ascending: false })
             ]);
 
             setUsers(usersData || []);
@@ -57,6 +60,8 @@ export function useData(user: any) {
             }
             setBonus(b);
 
+            setMetaHistory(histData || []);
+
         } catch (e) {
             console.error('Error fetching data:', e);
         } finally {
@@ -68,5 +73,5 @@ export function useData(user: any) {
         fetchData();
     }, [fetchData]);
 
-    return { loading, users, config, records, sectors, billings, sectorConfigs, bonus, refresh: fetchData };
+    return { loading, users, config, records, sectors, billings, sectorConfigs, bonus, metaHistory, refresh: fetchData };
 }

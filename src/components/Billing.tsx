@@ -7,12 +7,13 @@ import { supabase } from '@/lib/supabase';
 
 export default function BillingPage() {
     const { user } = useAuth();
-    const { loading, users, sectors, billings, refresh, openModal } = useGlobalData();
+    const { loading, users, sectors, billings, refresh, openModal, selectedMonth } = useGlobalData();
 
     if (loading || !user) return <div className="page active"><p className="muted">Carregando...</p></div>;
 
     const today = td();
-    const mr = mo(today);
+    const effectiveDate = selectedMonth ? `${selectedMonth}-01` : today;
+    const mr = mo(effectiveDate);
     const isSup = user.role === 'sup';
 
     const visSectors = isSup ? sectors : sectors.filter(s => (s.colaboradores || []).includes(user.id));

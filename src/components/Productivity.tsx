@@ -8,15 +8,19 @@ import { supabase } from '@/lib/supabase';
 
 export default function ProductivityPage() {
     const { user } = useAuth();
-    const { loading, users, config, records, sectors, sectorConfigs, refresh, openModal, bonus } = useGlobalData();
+    const { loading, users, config, records, sectors, sectorConfigs, refresh, openModal, bonus, metaHistory, selectedMonth } = useGlobalData();
 
-    const [period, setPeriod] = useState<'day' | 'week' | 'month'>('day');
+    const isPast = !!selectedMonth && selectedMonth !== td().slice(0, 7);
+    const [periodState, setPeriod] = useState<'day' | 'week' | 'month'>('day');
+    const period = isPast ? 'month' : periodState;
+
     const [weekOffset, setWeekOffset] = useState(0);
     // Optional: Modal states for edit/delete here or separate components
 
     if (loading || !user) return <div className="page active"><p className="muted">Carregando...</p></div>;
 
     const today = td();
+    const effectiveDate = selectedMonth ? `${selectedMonth}-01` : today;
     const isSup = user.role === 'sup';
     const collabs = users.filter(u => u.role !== 'sup');
 
@@ -31,7 +35,7 @@ export default function ProductivityPage() {
         const lbl = weekOffset === 0 ? 'Semana atual' : weekOffset === -1 ? 'Semana passada' : `${Math.abs(weekOffset)} sem. atrás`;
         rL = `${lbl} — ${fd(w.s)} a ${fd(w.e)}`;
     } else if (period === 'month') {
-        const m = mo(today);
+        const m = mo(effectiveDate);
         rS = m.s; rE = m.e;
         rL = `Mês — ${fd(m.s)} a ${fd(m.e)}`;
     }
@@ -44,7 +48,8 @@ export default function ProductivityPage() {
 
     const renderCards = (targetUsers: typeof users) => {
         return targetUsers.map(u => {
-            const c = cfgOf(u.id, config, sectors, sectorConfigs);
+            const currentMes = selectedMonth || today.slice(0, 7);
+            const c = cfgOf(u.id, config, sectors, sectorConfigs, currentMes, metaHistory);
             const mX = period === 'day' ? c.xd : period === 'week' ? c.xs : c.xm;
             const mM = period === 'day' ? c.md : period === 'week' ? c.ms : c.mm;
             const rs = records.filter(r => r.uid === u.id && inR(r.d, rS, rE));
@@ -53,9 +58,11 @@ export default function ProductivityPage() {
             const co = rs.reduce((s, r) => s + (r.c || 0), 0);
             const pX = mX ? Math.min(100, Math.round(tot / mX * 100)) : 0;
             const pMv = mM ? Math.min(100, Math.round(tot / mM * 100)) : 0;
-            const cl = pX >= 100 ? 'var(--gold)' : pMv >= 100 ? 'var(--g600)' : pX >= 60 ? 'var(--warn)' : 'var(--gray400)';
-            const p = calcPts(u.id, records, config, sectors, sectorConfigs, bonus);
-            const s2 = setorOf(u.id, sectors);
+            const mN = period === 'month' ? c.nm : null;
+            const pN = mN ? Math.min(100, Math.round(tot / mN * 100)) : 0;
+            const cl = pX >= 100 ? 'var(--gold)' : pMv >= 100 ? 'var(--g600)' : pN >= 100 ? '#ef4444' : 'var(--gray400)';
+            const p = calcPts(u.id, records, config, sectors, sectorConfigs, bonus, metaHistory);
+            const s2 = setorOf(u.id, sectors, currentMes, metaHistory);
 
             return (
                 <div className="cc" key={u.id}>
@@ -78,12 +85,14 @@ export default function ProductivityPage() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                             <span style={{ fontSize: 12, color: 'var(--muted)' }}>{rL}</span>
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                {pN >= 100 && pMv < 100 && <span className="badge" style={{ fontSize: 10, background: '#fee2e2', color: '#b91c1c' }}>🔴 Min</span>}
                                 {pMv >= 100 && <span className="badge bg" style={{ fontSize: 10 }}>🟢 Média</span>}
                                 {pX >= 100 && <span className="badge bgold" style={{ fontSize: 10 }}>🥇 Máxima</span>}
                                 <span style={{ fontSize: 14, fontWeight: 700, color: cl }}>{tot}/{mX}</span>
                             </div>
                         </div>
                         <div className="pw" style={{ position: 'relative' }}>
+                            {pN > 0 && <div className="pb" style={{ width: `${pN}%`, background: '#fca5a5', opacity: 0.4, position: 'absolute', top: 0, left: 0, height: '100%' }} />}
                             <div className="pb" style={{ width: `${pMv}%`, background: 'var(--g400)', opacity: 0.4, position: 'absolute', top: 0, left: 0, height: '100%' }} />
                             <div className="pb" style={{ width: `${pX}%`, background: cl }} />
                         </div>
@@ -112,8 +121,9 @@ export default function ProductivityPage() {
     };
 
     const renderCollabView = () => {
-        const c = cfgOf(user.id, config, sectors, sectorConfigs);
-        const p = calcPts(user.id, records, config, sectors, sectorConfigs, bonus);
+        const currentMes = selectedMonth || today.slice(0, 7);
+        const c = cfgOf(user.id, config, sectors, sectorConfigs, currentMes, metaHistory);
+        const p = calcPts(user.id, records, config, sectors, sectorConfigs, bonus, metaHistory);
         const rs = records.filter(r => r.uid === user.id && inR(r.d, rS, rE));
         const tot = rs.reduce((s, r) => s + (r.a || 0) + (r.c || 0), 0);
         const at = rs.reduce((s, r) => s + (r.a || 0), 0);
@@ -122,7 +132,9 @@ export default function ProductivityPage() {
         const mMv = period === 'day' ? c.md : period === 'week' ? c.ms : c.mm;
         const pX = mX ? Math.min(100, Math.round(tot / mX * 100)) : 0;
         const pMv = mMv ? Math.min(100, Math.round(tot / mMv * 100)) : 0;
-        const cl = pX >= 100 ? 'var(--gold)' : pMv >= 100 ? 'var(--g600)' : pX >= 60 ? 'var(--warn)' : 'var(--gray400)';
+        const mN = period === 'month' ? c.nm : null;
+        const pN = mN ? Math.min(100, Math.round(tot / mN * 100)) : 0;
+        const cl = pX >= 100 ? 'var(--gold)' : pMv >= 100 ? 'var(--g600)' : pN >= 100 ? '#ef4444' : 'var(--gray400)';
 
         return (
             <div className="g2">
@@ -134,11 +146,13 @@ export default function ProductivityPage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                         <span style={{ fontSize: 14, fontWeight: 500 }}>{rL}</span>
                         <div style={{ display: 'flex', gap: 6 }}>
+                            {pN >= 100 && pMv < 100 && <span className="badge" style={{ fontSize: 10, background: '#fee2e2', color: '#b91c1c' }}>🔴 Mínima!</span>}
                             {pMv >= 100 && <span className="badge bg">🟢 Média!</span>}
                             {pX >= 100 && <span className="badge bgold">🥇 Máxima!</span>}
                         </div>
                     </div>
                     <div className="pw" style={{ height: 10, position: 'relative', marginBottom: 6 }}>
+                        {pN > 0 && <div className="pb" style={{ width: `${pN}%`, background: '#fca5a5', opacity: 0.4, position: 'absolute', top: 0, left: 0, height: '100%' }} />}
                         <div className="pb" style={{ width: `${pMv}%`, background: 'var(--g400)', opacity: 0.4, position: 'absolute', top: 0, left: 0, height: '100%' }} />
                         <div className="pb" style={{ width: `${pX}%`, background: cl }} />
                     </div>
@@ -202,8 +216,8 @@ export default function ProductivityPage() {
                 <div><h2>Produtividade</h2><p>Registros e acompanhamento de metas</p></div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div className="f-tabs">
-                        <button className={`pbtn ${period === 'day' ? 'active' : ''}`} onClick={() => setPeriod('day')}>Hoje</button>
-                        <button className={`pbtn ${period === 'week' ? 'active' : ''}`} onClick={() => setPeriod('week')}>Semana</button>
+                        {!isPast && <button className={`pbtn ${period === 'day' ? 'active' : ''}`} onClick={() => setPeriod('day')}>Hoje</button>}
+                        {!isPast && <button className={`pbtn ${period === 'week' ? 'active' : ''}`} onClick={() => setPeriod('week')}>Semana</button>}
                         <button className={`pbtn ${period === 'month' ? 'active' : ''}`} onClick={() => setPeriod('month')}>Mês</button>
                     </div>
 

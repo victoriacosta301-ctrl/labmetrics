@@ -6,12 +6,13 @@ import { td, mo, fd, fn, inR, wk, cfgOf, calcPts } from '@/lib/utils';
 
 export default function DashboardPage() {
     const { user } = useAuth();
-    const { loading, users, config, records, sectors, sectorConfigs, billings, bonus, openModal } = useGlobalData();
+    const { loading, users, config, records, sectors, sectorConfigs, billings, bonus, metaHistory, openModal, selectedMonth } = useGlobalData();
 
     if (loading || !user) return <div className="page active"><p className="muted">Carregando...</p></div>;
 
     const today = td();
-    const mr = mo(today);
+    const effectiveDate = selectedMonth ? `${selectedMonth}-01` : today;
+    const mr = mo(effectiveDate);
     const isSup = user.role === 'sup';
     const collabs = users.filter(u => u.role !== 'sup');
 
@@ -19,10 +20,10 @@ export default function DashboardPage() {
     if (isSup) {
         const tH = records.filter(r => r.d === today).reduce((s, r) => s + (r.a || 0) + (r.c || 0), 0);
         const tM = records.filter(r => inR(r.d, mr.s, mr.e)).reduce((s, r) => s + (r.a || 0) + (r.c || 0), 0);
-        const tP = collabs.reduce((s, u) => s + calcPts(u.id, records, config, sectors, sectorConfigs, bonus), 0);
+        const tP = collabs.reduce((s, u) => s + calcPts(u.id, records, config, sectors, sectorConfigs, bonus, metaHistory), 0);
 
         // Ranking
-        const rnk = collabs.map(u => ({ ...u, p: calcPts(u.id, records, config, sectors, sectorConfigs, bonus) })).sort((a, b) => b.p - a.p);
+        const rnk = collabs.map(u => ({ ...u, p: calcPts(u.id, records, config, sectors, sectorConfigs, bonus, metaHistory) })).sort((a, b) => b.p - a.p);
         const rc = ['r1', 'r2', 'r3'];
 
         return (
@@ -62,7 +63,7 @@ export default function DashboardPage() {
                     <div className="card">
                         <div className="ct">📈 Progresso do Time — Mês</div>
                         {collabs.map(u => {
-                            const c = cfgOf(u.id, config, sectors, sectorConfigs);
+                            const c = cfgOf(u.id, config, sectors, sectorConfigs, selectedMonth || today.slice(0, 7), metaHistory);
                             const p = records.filter(r => r.uid === u.id && inR(r.d, mr.s, mr.e)).reduce((s, r) => s + (r.a || 0) + (r.c || 0), 0);
                             const pX = c.xm ? Math.min(100, Math.round(p / c.xm * 100)) : 0;
                             const pM = c.mm ? Math.min(100, Math.round(p / c.mm * 100)) : 0;
@@ -91,8 +92,9 @@ export default function DashboardPage() {
     }
 
     // Collaborator dashboard
-    const c = cfgOf(user.id, config, sectors, sectorConfigs);
-    const p = calcPts(user.id, records, config, sectors, sectorConfigs, bonus);
+    const currentMes = selectedMonth || today.slice(0, 7);
+    const c = cfgOf(user.id, config, sectors, sectorConfigs, currentMes, metaHistory);
+    const p = calcPts(user.id, records, config, sectors, sectorConfigs, bonus, metaHistory);
     const wr = wk(today);
     const yd = new Date(today + 'T12:00:00'); yd.setDate(yd.getDate() - 1);
     const yesterday = yd.toISOString().slice(0, 10);
@@ -107,9 +109,10 @@ export default function DashboardPage() {
     const pcY = c.xd ? Math.min(100, Math.round(pY / c.xd * 100)) : 0;
     const pcS = c.xs ? Math.min(100, Math.round(pS / c.xs * 100)) : 0;
     const pcM = c.xm ? Math.min(100, Math.round(pMo / c.xm * 100)) : 0;
+    const pcNm = c.nm ? Math.min(100, Math.round(pMo / c.nm * 100)) : 0;
 
     const allU = users.filter(u => u.role !== 'sup');
-    const rnk = allU.map(u => ({ ...u, p: calcPts(u.id, records, config, sectors, sectorConfigs) })).sort((a, b) => b.p - a.p);
+    const rnk = allU.map(u => ({ ...u, p: calcPts(u.id, records, config, sectors, sectorConfigs, bonus, metaHistory) })).sort((a, b) => b.p - a.p);
     const rc = ['r1', 'r2', 'r3'];
 
     return (
@@ -132,7 +135,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="sc"><div className="slbl">Hoje</div><div className="sval" style={{ color: co(pcD) }}>{pD}<span style={{ fontSize: 15, color: 'var(--muted)' }}>/{c.xd}</span></div><div className="pw mt8"><div className="pb" style={{ width: `${pcD}%`, background: co(pcD) }} /></div><div className="ssub mt8">{pcD}% meta máx. {pcD >= 100 ? '✅' : ''}</div></div>
                 <div className="sc"><div className="slbl">Semana</div><div className="sval" style={{ color: co(pcS) }}>{pS}<span style={{ fontSize: 15, color: 'var(--muted)' }}>/{c.xs}</span></div><div className="pw mt8"><div className="pb" style={{ width: `${pcS}%`, background: co(pcS) }} /></div><div className="ssub mt8">{pcS}% meta máx. {pcS >= 100 ? '✅' : ''}</div></div>
-                <div className="sc"><div className="slbl">Mês</div><div className="sval" style={{ color: co(pcM) }}>{pMo}<span style={{ fontSize: 15, color: 'var(--muted)' }}>/{c.xm}</span></div><div className="pw mt8"><div className="pb" style={{ width: `${pcM}%`, background: co(pcM) }} /></div><div className="ssub mt8">{pcM}% meta máx. {pcM >= 100 ? '✅' : ''}</div></div>
+                <div className="sc"><div className="slbl">Mês</div><div className="sval" style={{ color: co(pcM) }}>{pMo}<span style={{ fontSize: 15, color: 'var(--muted)' }}>/{c.xm}</span></div><div className="pw mt8"><div className="pb" style={{ width: `${pcM}%`, background: co(pcM) }} /></div><div className="ssub mt8">{pcNm >= 100 && pcM < 100 ? <span style={{ color: '#ef4444', fontWeight: 600 }}>🔴 Mín. alcançada</span> : `${pcM}% meta máx.`} {pcM >= 100 ? '✅' : ''}</div></div>
             </div>
 
             <div className="g2">
@@ -153,22 +156,25 @@ export default function DashboardPage() {
                 <div className="card">
                     <div className="ct">📈 Progresso do Time — Mês <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--muted)' }}>— visualização</span></div>
                     {allU.map(u => {
-                        const cfg = cfgOf(u.id, config, sectors, sectorConfigs);
+                        const cfg = cfgOf(u.id, config, sectors, sectorConfigs, currentMes, metaHistory);
                         const prod = records.filter(r => r.uid === u.id && inR(r.d, mr.s, mr.e)).reduce((s, r) => s + (r.a || 0) + (r.c || 0), 0);
                         const pctX = cfg.xm ? Math.min(100, Math.round(prod / cfg.xm * 100)) : 0;
                         const pctM = cfg.mm ? Math.min(100, Math.round(prod / cfg.mm * 100)) : 0;
-                        const clr = pctX >= 100 ? 'var(--gold)' : pctM >= 100 ? 'var(--g600)' : pctX >= 60 ? 'var(--warn)' : 'var(--gray400)';
+                        const pctN = cfg.nm ? Math.min(100, Math.round(prod / cfg.nm * 100)) : 0;
+                        const clr = pctX >= 100 ? 'var(--gold)' : pctM >= 100 ? 'var(--g600)' : pctN >= 100 ? '#ef4444' : 'var(--gray400)';
                         return (
                             <div key={u.id} style={{ marginBottom: 14 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
                                     <span style={{ fontSize: 13, fontWeight: 500 }}>{u.name}</span>
                                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                        {pctM >= 100 && <span className="badge bg" style={{ fontSize: 10 }}>🟢</span>}
-                                        {pctX >= 100 && <span className="badge bgold" style={{ fontSize: 10 }}>🥇</span>}
+                                        {pctN >= 100 && pctM < 100 && <span className="badge" style={{ fontSize: 10, background: '#fee2e2', color: '#b91c1c' }}>🔴 Min</span>}
+                                        {pctM >= 100 && <span className="badge bg" style={{ fontSize: 10 }}>🟢 Med</span>}
+                                        {pctX >= 100 && <span className="badge bgold" style={{ fontSize: 10 }}>🥇 Max</span>}
                                         <span style={{ fontSize: 13, color: clr, fontWeight: 600 }}>{prod}/{cfg.xm}</span>
                                     </div>
                                 </div>
                                 <div className="pw" style={{ height: 5, position: 'relative' }}>
+                                    {pctN > 0 && <div className="pb" style={{ width: `${pctN}%`, background: '#fca5a5', opacity: 0.45, position: 'absolute', top: 0, left: 0, height: '100%' }} />}
                                     <div className="pb" style={{ width: `${pctM}%`, background: 'var(--g400)', opacity: 0.45, position: 'absolute', top: 0, left: 0, height: '100%' }} />
                                     <div className="pb" style={{ width: `${pctX}%`, background: clr }} />
                                 </div>

@@ -1639,37 +1639,6 @@ function buildPDF(mesNome,mS,mE,prodData,fatData,cfg,titulo){
 
   y+=10;
 
-  // ── SEÇÃO 2: DETALHE DE METAS E PONTOS ──
-  if(y>H-60){doc.addPage();y=20;}
-  setFill(G.dark);doc.roundedRect(14,y,W-28,8,2,2,'F');
-  setTxt(G.white);doc.setFont('helvetica','bold');doc.setFontSize(11);
-  doc.text('  METAS E PONTUAÇÕES — DETALHAMENTO',14,y+5.5);
-  y+=14;
-
-  // Caixas de meta global
-  const boxW=(W-28-8)/2,boxX2=14+boxW+8;
-
-  // Box Máxima
-  setFill('#fef3c7');doc.roundedRect(14,y,boxW,28,3,3,'F');
-  setDraw('#fde68a');doc.setLineWidth(0.5);doc.roundedRect(14,y,boxW,28,3,3,'S');
-  setTxt(G.amber);doc.setFont('helvetica','bold');doc.setFontSize(9);
-  doc.text('META MAXIMA (Global)',14+boxW/2,y+6,{align:'center'});
-  doc.setFontSize(8);doc.setFont('helvetica','normal');setTxt(G.black);
-  doc.text('Diaria: '+fn2(cfg.xd||40)+'  |  Pts: '+fn2(cfg.xpd||15),14+boxW/2,y+12,{align:'center'});
-  doc.text('Semanal: '+fn2(cfg.xs||200)+'  |  Pts: '+fn2(cfg.xps||50),14+boxW/2,y+17,{align:'center'});
-  doc.text('Mensal: '+fn2(cfg.xm||880)+'  |  Pts: '+fn2(cfg.xpm||150),14+boxW/2,y+22,{align:'center'});
-
-  // Box Média
-  setFill('#f0fdf4');doc.roundedRect(boxX2,y,boxW,28,3,3,'F');
-  setDraw('#bbf7d0');doc.setLineWidth(0.5);doc.roundedRect(boxX2,y,boxW,28,3,3,'S');
-  setTxt(G.mid);doc.setFont('helvetica','bold');doc.setFontSize(9);
-  doc.text('META MEDIA (Global)',boxX2+boxW/2,y+6,{align:'center'});
-  doc.setFontSize(8);doc.setFont('helvetica','normal');setTxt(G.black);
-  doc.text('Diaria: '+fn2(cfg.md||25)+'  |  Pts: '+fn2(cfg.mpd||8),boxX2+boxW/2,y+12,{align:'center'});
-  doc.text('Semanal: '+fn2(cfg.ms||125)+'  |  Pts: '+fn2(cfg.mps||25),boxX2+boxW/2,y+17,{align:'center'});
-  doc.text('Mensal: '+fn2(cfg.mm||550)+'  |  Pts: '+fn2(cfg.mpm||80),boxX2+boxW/2,y+22,{align:'center'});
-
-  y+=36;
 
   // Top performers resumo
   const top3=prodData.slice(0,3);

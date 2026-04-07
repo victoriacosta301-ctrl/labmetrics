@@ -13,22 +13,27 @@ interface DataContextType {
     sectorConfigs: any;
     billings: any[];
     bonus: any;
+    metaHistory: any[];
     refresh: () => void;
     // Modal Management
     modal: { type: string; payload?: any } | null;
     openModal: (type: string, payload?: any) => void;
     closeModal: () => void;
+    selectedMonth: string;
+    setSelectedMonth: (m: string) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export function DataProvider({ children }: { children: ReactNode }) {
     const { user } = useAuth();
-    const { loading, users, config, records, sectors, sectorConfigs, billings, bonus, refresh } = useData(user);
+    const { loading, users, config, records, sectors, sectorConfigs, billings, bonus, metaHistory, refresh } = useData(user);
 
     const [modal, setModal] = useState<{ type: string; payload?: any } | null>(null);
     const openModal = (type: string, payload?: any) => setModal({ type, payload });
     const closeModal = () => setModal(null);
+
+    const [selectedMonth, setSelectedMonth] = useState<string>('');
 
     const contextValue = {
         loading,
@@ -39,10 +44,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
         sectorConfigs,
         billings,
         bonus,
+        metaHistory,
         refresh,
         modal,
         openModal,
         closeModal,
+        selectedMonth,
+        setSelectedMonth,
     };
 
     return (
