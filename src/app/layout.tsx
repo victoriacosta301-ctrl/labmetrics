@@ -7,6 +7,8 @@ export const metadata: Metadata = {
     description: "Sistema de Gestão de Produtividade do HemoLab",
 };
 
+import { AuthProvider } from "@/context/AuthContext";
+
 export default function RootLayout({
     children,
 }: Readonly<{
@@ -18,7 +20,9 @@ export default function RootLayout({
                 <link href="https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@400;500;700;800;900&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
             </head>
             <body>
-                {children}
+                <AuthProvider>
+                    {children}
+                </AuthProvider>
             </body>
         </html>
     );
